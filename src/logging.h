@@ -53,6 +53,7 @@ namespace BCLog {
         COINDB      = (1 << 18),
         QT          = (1 << 19),
         LEVELDB     = (1 << 20),
+        DBLAYER     = (1 << 29),
         ALL         = ~(uint32_t)0,
     };
 

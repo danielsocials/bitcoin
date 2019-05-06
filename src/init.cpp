@@ -64,6 +64,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/thread.hpp>
 #include <openssl/crypto.h>
+#include "dblayer.h"
 
 #if ENABLE_ZMQ
 #include <zmq/zmqabstractnotifier.h>
@@ -301,6 +302,8 @@ void Shutdown(InitInterfaces& interfaces)
     GetMainSignals().UnregisterWithMempoolSignals(mempool);
     globalVerifyHandle.reset();
     ECC_Stop();
+
+    dbClose();
     LogPrintf("%s: done\n", __func__);
 }
 
@@ -548,6 +551,30 @@ void SetupServerArgs()
 
     // Add the hidden options
     gArgs.AddHiddenArgs(hidden_args);
+
+    gArgs.AddArg("-savetodb=<true>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-dbname=<database name>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-dbhost=<host>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-dbport=<port>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-dbuser=<username>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-dbpass=<password>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-deleteallutx=<true>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-savemempool=<true>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-filtertx=<true>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-litedb=<false>", "database options", true, OptionsCategory::RPC);
+    gArgs.AddArg("-liteheight=<0>", "database options", true, OptionsCategory::RPC);
+    //strUsage += "\n" + _("database options:") + "\n";
+    //strUsage += "  -savetodb=<true>\n";
+    //strUsage += "  -dbname=<database name>\n";
+    //strUsage += "  -dbhost=<host>\n";
+    //strUsage += "  -dbport=<port>\n";
+    //strUsage += "  -dbuser=<username>\n";
+    //strUsage += "  -dbpass=<password>\n";
+    //strUsage += "  -deleteallutx=<true>\n";
+    //strUsage += "  -savemempool=<true>\n";
+    //strUsage += "  -filtertx=<true>\n";
+    //strUsage += "  -litedb=<false>\n";
+    //strUsage += "  -liteheight=<0>\n";
 }
 
 std::string LicenseInfo()
@@ -725,7 +752,11 @@ static void ThreadImport(std::vector<fs::path> vImportFiles)
     }
     } // End scope of CImportingNow
     if (gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
+        dbSynMempoolStart();
         LoadMempool();
+        int64_t nStart = GetTimeMicros();
+        dbSynMempoolEnd();
+        LogPrint(BCLog::DBLAYER,"- sync mempool with db: %.2fms\n", (GetTimeMicros() - nStart) * 0.001);
     }
     g_is_mempool_loaded = !ShutdownRequested();
 }
@@ -1335,6 +1366,13 @@ bool AppInitMain(InitInterfaces& interfaces)
     peerLogic.reset(new PeerLogicValidation(g_connman.get(), g_banman.get(), scheduler, gArgs.GetBoolArg("-enablebip61", DEFAULT_ENABLE_BIP61)));
     RegisterValidationInterface(peerLogic.get());
 
+    if  (gArgs.GetArg("-savetodb", false)) {
+        uiInterface.InitMessage(_("dbOpen begin..."));
+        if (!dbOpen())
+            return InitError(_("Error connect database fail!"));
+        uiInterface.InitMessage(_("dbOpen end..."));
+        }
+
     // sanitize comments per BIP-0014, format user agent and check total size
     std::vector<std::string> uacomments;
     for (const std::string& cmt : gArgs.GetArgs("-uacomment")) {
@@ -1594,6 +1632,25 @@ bool AppInitMain(InitInterfaces& interfaces)
                         break;
                     }
                 }
+
+                if  (gArgs.GetArg("-savetodb", false)) 
+                    {
+                    uiInterface.InitMessage(_("dbSync begin..."));
+                    //bool deleteallutx = GetArg("-deleteallutx", true);
+                    //if  (deleteallutx) {
+                    //    if (dbDeleteAllUtx() == -1) {
+                    //        strLoadError = _("Error delete all utx from database...");
+                    //        break;
+                    //    }
+                    //}
+
+                    if (dbSync(0) == -1) {
+                        strLoadError = _("Error sql database sync...");
+                        break;
+                    }
+                    uiInterface.InitMessage(_("dbSync end..."));
+                    }
+
             } catch (const std::exception& e) {
                 LogPrintf("%s\n", e.what());
                 strLoadError = _("Error opening block database");

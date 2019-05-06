@@ -20,6 +20,9 @@
 #include <streams.h>
 #include <ui_interface.h>
 #include <validation.h>
+#include "dblayer.h"
+
+#include <boost/test/unit_test.hpp>
 
 const std::function<std::string(const char*)> G_TRANSLATION_FUN = nullptr;
 
@@ -65,6 +68,13 @@ fs::path BasicTestingSetup::SetDataDir(const std::string& name)
 TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(chainName)
 {
     SetDataDir("tempdir");
+  
+    if (!dbOpen())
+      {
+      throw std::runtime_error("Error connect database fail!");
+      return ;
+      }
+
     const CChainParams& chainparams = Params();
         // Ideally we'd move all the RPC tests to the functional testing framework
         // instead of unit tests, but for now we need these here.
@@ -78,6 +88,15 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         GetMainSignals().RegisterBackgroundSignalScheduler(scheduler);
 
         mempool.setSanityCheck(1.0);
+        fPrintToConsole = true;
+        fPrintToDebugLog = false;
+        gArgs.ForceSetArg("-savetodb", "1");   
+        gArgs.ForceSetArg("-dbname", "bitcoin");   
+        gArgs.ForceSetArg("-dbuser", "postgres");  
+        gArgs.ForceSetArg("-dbpass", "bitcoin");  
+        gArgs.ForceSetArg("-dbhost", "127.0.0.1"); 
+        gArgs.ForceSetArg("-dbport", "5433");      
+        dbOpen();
         pblocktree.reset(new CBlockTreeDB(1 << 20, true));
         pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
@@ -96,6 +115,11 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
 
         g_banman = MakeUnique<BanMan>(GetDataDir() / "banlist.dat", nullptr, DEFAULT_MISBEHAVING_BANTIME);
         g_connman = MakeUnique<CConnman>(0x1337, 0x1337); // Deterministic randomness for tests.
+        if (!dbOpen())
+         {
+         BOOST_ERROR("Error connect database fail!\n");
+         return ;
+         }
 }
 
 TestingSetup::~TestingSetup()
@@ -110,6 +134,8 @@ TestingSetup::~TestingSetup()
     pcoinsTip.reset();
     pcoinsdbview.reset();
     pblocktree.reset();
+    dbClose();
+
 }
 
 TestChain100Setup::TestChain100Setup() : TestingSetup(CBaseChainParams::REGTEST)

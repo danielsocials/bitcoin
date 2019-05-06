@@ -284,6 +284,8 @@ public:
     const std::vector<CTxOut> vout;
     const int32_t nVersion;
     const uint32_t nLockTime;
+    int64_t nTimeReceived;
+    std::string relayIp;
 
 private:
     /** Memory only. */

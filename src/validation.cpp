@@ -40,8 +40,10 @@
 #include <util/strencodings.h>
 #include <validationinterface.h>
 #include <warnings.h>
+#include "dblayer.h"
 
 #include <future>
+
 #include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
@@ -57,6 +59,7 @@
 /**
  * Global state
  */
+
 namespace {
     struct CBlockIndexWorkComparator
     {
@@ -950,7 +953,7 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
             if (plTxnReplaced)
                 plTxnReplaced->push_back(it->GetSharedTx());
         }
-        pool.RemoveStaged(allConflicting, false, MemPoolRemovalReason::REPLACED);
+        pool.RemoveStaged(allConflicting, false, MemPoolRemovalReason::REPLACED, true);
 
         // This transaction should only count for fee estimation if:
         // - it isn't a BIP 125 replacement transaction (may not be widely supported)
@@ -961,6 +964,9 @@ static bool AcceptToMemoryPoolWorker(const CChainParams& chainparams, CTxMemPool
 
         // Store transaction in memory
         pool.addUnchecked(entry, setAncestors, validForFeeEstimation);
+
+        // Store transaction in database
+        dbAcceptTx(tx);
 
         // trim mempool and check if tx was trimmed
         if (!bypass_limits) {
@@ -2303,6 +2309,11 @@ bool CChainState::DisconnectTip(CValidationState& state, const CChainParams& cha
         assert(flushed);
     }
     LogPrint(BCLog::BENCH, "- Disconnect block: %.2fms\n", (GetTimeMicros() - nStart) * MILLI);
+
+    nStart = GetTimeMicros();
+    dbDisconnectBlock(block);
+    LogPrint(BCLog::DBLAYER, "- Disconnect block: %.2fms, Height %d\n", (GetTimeMicros() - nStart) * 0.001, pindexDelete->nHeight);
+
     // Write the chain state to disk, if necessary.
     if (!FlushStateToDisk(chainparams, state, FlushStateMode::IF_NEEDED))
         return false;
@@ -2454,7 +2465,13 @@ bool CChainState::ConnectTip(CValidationState& state, const CChainParams& chainp
     LogPrint(BCLog::BENCH, "  - Connect postprocess: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime6 - nTime5) * MILLI, nTimePostConnect * MICRO, nTimePostConnect * MILLI / nBlocksTotal);
     LogPrint(BCLog::BENCH, "- Connect block: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime6 - nTime1) * MILLI, nTimeTotal * MICRO, nTimeTotal * MILLI / nBlocksTotal);
 
+    int64_t nStart = GetTimeMicros();
+    assert (pindexNew != NULL);
+    dbSaveBlock(pindexNew, (CBlock&)blockConnecting );
+    LogPrint(BCLog::DBLAYER, "- Save block to db: %.2fms height %d\n", (GetTimeMicros() - nStart) * 0.001, pindexNew->nHeight);
+
     connectTrace.BlockConnected(pindexNew, std::move(pthisBlock));
+
     return true;
 }
 
