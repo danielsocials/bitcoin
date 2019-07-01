@@ -392,7 +392,7 @@ int dbSaveBlock(const CBlockIndex *blockindex, CBlock &block) {
   int pool_id = POOL_UNKNOWN;
   int poolBip = BIP_DEFAULT;
 
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     LogPrint(BCLog::DBLAYER, "block save first roll back height: %d \n", height);
     goto rollback;
   }
@@ -405,7 +405,7 @@ int dbSaveBlock(const CBlockIndex *blockindex, CBlock &block) {
   if (blk_id == -1) {
     dbSrv.db_ops->rollback();
 
-    if (dbSrv.db_ops->begin() == -1) {
+    if (!dbSrv.db_ops->begin()) {
       LogPrint(BCLog::DBLAYER, "block save second roll back height: %d \n", height);
       goto rollback;
     }
@@ -531,7 +531,7 @@ int dbAcceptTx(const CTransaction &tx) {
   if (!gArgs.GetArg("-savetodb", false))
       return 0;
 
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     LogPrint(BCLog::DBLAYER, "dbAcceptTx roll back: %s \n", tx.GetHash().ToString());
     dbSrv.db_ops->rollback();
     return -1;
@@ -562,7 +562,7 @@ int dbRemoveTx(uint256 txhash) {
     LogPrint(BCLog::DBLAYER, "dbRemoveTx: tx: %s  not in database  \n", txhash.ToString());
     return 0;
   }
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     dbSrv.db_ops->rollback();
     LogPrint(BCLog::DBLAYER, "dbRemoveTx roll back: %s \n", txhash.ToString());
     return -1;
@@ -653,6 +653,7 @@ int testGetPool1() {
   return 0;
 }
 
+/* newHeight, 0:first run, -1: start sync, other: normal sync */
 int dbSync(int newHeight) {
   int i = 0;
   CBlock block;
@@ -660,8 +661,8 @@ int dbSync(int newHeight) {
   static bool syncing=false;
   int currentHeight = 0; 
 
-
-  if ((newHeight <= (maxHeight+1)) && (maxHeight != 0)) return 0; 
+  if ((newHeight == 0) || ((newHeight!=-1) && newHeight <= (maxHeight+1))) 
+	 return 0; 
 
   if (syncing) return 0;
 
@@ -717,7 +718,7 @@ int dbSync(int newHeight) {
 
 int dbDisconnectBlock(CBlock &block) {
 
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     dbSrv.db_ops->rollback();
     return -1;
   }
@@ -734,7 +735,7 @@ int dbDisconnectBlock(CBlock &block) {
 }
 
 int dbSynMempoolStart() {
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     dbSrv.db_ops->rollback();
     return -1;
   }
@@ -751,7 +752,7 @@ int dbSynMempoolStart() {
 }    
 
 int dbSynMempoolEnd() {
-  if (dbSrv.db_ops->begin() == -1) {
+  if (!dbSrv.db_ops->begin()) {
     dbSrv.db_ops->rollback();
     return -1;
   }

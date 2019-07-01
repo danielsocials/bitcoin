@@ -1633,23 +1633,6 @@ bool AppInitMain(InitInterfaces& interfaces)
                     }
                 }
 
-                if  (gArgs.GetArg("-savetodb", false)) 
-                    {
-                    uiInterface.InitMessage(_("dbSync begin..."));
-                    //bool deleteallutx = GetArg("-deleteallutx", true);
-                    //if  (deleteallutx) {
-                    //    if (dbDeleteAllUtx() == -1) {
-                    //        strLoadError = _("Error delete all utx from database...");
-                    //        break;
-                    //    }
-                    //}
-
-                    if (dbSync(0) == -1) {
-                        strLoadError = _("Error sql database sync...");
-                        break;
-                    }
-                    uiInterface.InitMessage(_("dbSync end..."));
-                    }
 
             } catch (const std::exception& e) {
                 LogPrintf("%s\n", e.what());
@@ -1787,6 +1770,24 @@ bool AppInitMain(InitInterfaces& interfaces)
         chain_active_height = chainActive.Height();
     }
     LogPrintf("nBestHeight = %d\n", chain_active_height);
+
+    if  (gArgs.GetArg("-savetodb", false)) 
+       {
+       uiInterface.InitMessage(_("dbSync begin..."));
+       //bool deleteallutx = GetArg("-deleteallutx", true);
+       //if  (deleteallutx) {
+       //    if (dbDeleteAllUtx() == -1) {
+       //        strLoadError = _("Error delete all utx from database...");
+       //        break;
+       //    }
+       //}
+
+       if (dbSync(-1) == -1) {
+           InitError("Error sql database sync...");
+       }
+       uiInterface.InitMessage(_("dbSync end..."));
+       }
+ 
 
     if (gArgs.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl();
